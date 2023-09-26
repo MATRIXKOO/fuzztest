@@ -1,18 +1,37 @@
 #include "./fuzztest/internal/googletest_adaptor.h"
 
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "file/base/path.h"
 #include "gtest/gtest.h"
+#include "absl/functional/function_ref.h"
+#include "absl/strings/str_cat.h"
 #include "./fuzztest/internal/registry.h"
 
 namespace fuzztest::internal {
 
-void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv) {
+void RunExpectExit(absl::FunctionRef<void()> test) {
+#if defined(__APPLE__) || defined(_MSC_VER)
+  test();
+#else
+  EXPECT_EXIT(test(), ::testing::ExitedWithCode(0), "");
+#endif
+}
+
+#define run
+void RegisterFuzzTestsAsGoogleTests(
+    int* argc, char*** argv, const std::vector<std::string>& crashing_inputs) {
   ::fuzztest::internal::ForEachTest([&](auto& test) {
     auto fixture_factory =
         [argc, argv, &test]() -> ::fuzztest::internal::GTest_TestAdaptor* {
-      return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv);
+      return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv,
+                                                         std::nullopt);
     };
     auto test_factory = [argc, argv, &test]() -> ::testing::Test* {
-      return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv);
+      return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv,
+                                                         std::nullopt);
     };
     if (test.uses_fixture()) {
       ::testing::RegisterTest(test.suite_name(), test.test_name(), nullptr,
@@ -22,6 +41,17 @@ void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv) {
       ::testing::RegisterTest(test.suite_name(), test.test_name(), nullptr,
                               nullptr, test.file(), test.line(),
                               std::move(test_factory));
+      for (const auto& input : crashing_inputs) {
+        const std::string test_name =
+            absl::StrCat(test.test_name(), "/replay/", file::Basename(input));
+        auto factory = [argc, argv, &test, input]() -> ::testing::Test* {
+          return new ::fuzztest::internal::GTest_TestAdaptor(test, argc, argv,
+                                                             input);
+        };
+        ::testing::RegisterTest(test.suite_name(), test_name.c_str(), nullptr,
+                                nullptr, test.file(), test.line(),
+                                std::move(factory));
+      }
     }
   });
 
