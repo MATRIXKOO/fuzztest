@@ -24,6 +24,7 @@ exports_files(["LICENSE"])
 
 cc_library(
     name = "fuzztest",
+    testonly = True,
     srcs = ["fuzztest.cc"],
     hdrs = ["fuzztest.h"],
     deps = [
@@ -52,6 +53,8 @@ cc_library(
     hdrs = ["init_fuzztest.h"],
     deps = [
         ":googletest_adaptor",
+        ":io",
+        ":logging",
         ":registry",
         ":runtime",
         "@com_google_absl//absl/flags:flag",
@@ -90,6 +93,7 @@ cc_test(
     srcs = ["internal/any_test.cc"],
     deps = [
         ":any",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
@@ -97,6 +101,7 @@ cc_test(
 
 cc_library(
     name = "centipede_adaptor",
+    testonly = True,
     srcs = ["internal/centipede_adaptor.cc"],
     hdrs = ["internal/centipede_adaptor.h"],
     deps = [
@@ -105,12 +110,14 @@ cc_library(
         ":logging",
         ":runtime",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
     ],
 )
 
 cc_library(
     name = "compatibility_mode",
+    testonly = True,
     srcs = ["internal/compatibility_mode.cc"],
     hdrs = ["internal/compatibility_mode.h"],
     deps = [
@@ -250,6 +257,7 @@ cc_test(
         ":fixture_driver",
         ":logging",
         ":registration",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
@@ -263,6 +271,8 @@ cc_library(
     deps = [
         ":registry",
         ":runtime",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -294,6 +304,7 @@ cc_test(
     deps = [
         ":fuzztest",
         ":io",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
@@ -337,12 +348,14 @@ cc_library(
         ":type_support",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ],
 )
 
 cc_library(
     name = "registry",
+    testonly = True,
     srcs = ["internal/registry.cc"],
     hdrs = ["internal/registry.h"],
     deps = [
@@ -393,6 +406,7 @@ cc_test(
         ":domain",
         ":runtime",
         ":test_protobuf_cc_proto",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
@@ -415,6 +429,7 @@ cc_test(
     srcs = ["internal/seed_seq_test.cc"],
     deps = [
         ":seed_seq",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
@@ -440,6 +455,7 @@ cc_test(
     deps = [
         ":serialization",
         ":test_protobuf_cc_proto",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_googletest//:gtest_main",
         "@com_google_protobuf//:protobuf",
     ],
@@ -473,6 +489,7 @@ cc_test(
     srcs = ["internal/subprocess_test.cc"],
     deps = [
         ":subprocess",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
@@ -494,8 +511,8 @@ cc_test(
     name = "table_of_recent_compares_test",
     srcs = ["internal/table_of_recent_compares_test.cc"],
     deps = [
-        ":domain",
         ":table_of_recent_compares",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/random",
         "@com_google_googletest//:gtest_main",
     ],
@@ -533,6 +550,7 @@ cc_test(
         ":domain",
         ":test_protobuf_cc_proto",
         ":type_support",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
