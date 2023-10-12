@@ -132,13 +132,13 @@ std::ostream &operator<<(std::ostream &out, const FeatureSet &fs) {
     out << " " << name << ": " << value;
   };
   out << "ft: " << fs.size();
-  LogIfNotZero(fs.CountFeatures(feature_domains::kPCs), "cov");
-  LogIfNotZero(fs.CountFeatures(feature_domains::k8bitCounters), "cnt");
-  LogIfNotZero(fs.CountFeatures(feature_domains::kDataFlow), "df");
-  LogIfNotZero(num_cmp_features, "cmp");
-  LogIfNotZero(fs.CountFeatures(feature_domains::kCallStack), "stk");
-  LogIfNotZero(fs.CountFeatures(feature_domains::kBoundedPath), "path");
-  LogIfNotZero(fs.CountFeatures(feature_domains::kPCPair), "pair");
+  /* LogIfNotZero(fs.CountFeatures(feature_domains::kPCs), "cov"); */
+  /* LogIfNotZero(fs.CountFeatures(feature_domains::k8bitCounters), "cnt"); */
+  /* LogIfNotZero(fs.CountFeatures(feature_domains::kDataFlow), "df"); */
+  /* LogIfNotZero(num_cmp_features, "cmp"); */
+  /* LogIfNotZero(fs.CountFeatures(feature_domains::kCallStack), "stk"); */
+  /* LogIfNotZero(fs.CountFeatures(feature_domains::kBoundedPath), "path"); */
+  /* LogIfNotZero(fs.CountFeatures(feature_domains::kPCPair), "pair"); */
   for (size_t i = 0; i < std::size(feature_domains::kUserDomains); ++i) {
     LogIfNotZero(fs.CountFeatures(feature_domains::kUserDomains[i]),
                  absl::StrCat("usr", i));
