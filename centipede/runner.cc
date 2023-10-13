@@ -75,6 +75,15 @@ size_t LengthOfCommonPrefix(const void *s1, const void *s2, size_t n) {
   return n;
 }
 
+class ThreadTerminationDetector {
+ public:
+  // A dummy method to trigger the construction and make sure that the
+  // destructor will be called on the thread termination.
+  __attribute__((optnone)) void EnsureAlive() {}
+
+  ~ThreadTerminationDetector() { tls.OnThreadStop(); }
+};
+
 }  // namespace
 
 // Use of the fixed init priority allows to call CentipedeRunnerMain
@@ -87,6 +96,8 @@ GlobalRunnerState state __attribute__((init_priority(200)));
 // `tls` thus must not have a CTOR.
 // This avoids calls to __tls_init() in hot functions that use `tls`.
 __thread ThreadLocalRunnerState tls;
+// Instead, we use a separate thread_local termination detector.
+thread_local ThreadTerminationDetector termination_detector;
 
 // Tries to write `description` to `state.failure_description_path`.
 static void WriteFailureDescription(const char *description) {
@@ -126,12 +137,14 @@ void ThreadLocalRunnerState::TraceMemCmp(uintptr_t caller_pc, const uint8_t *s1,
 }
 
 void ThreadLocalRunnerState::OnThreadStart() {
+  termination_detector.EnsureAlive();
   tls.lowest_sp = tls.top_frame_sp =
       reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   tls.call_stack.Reset(state.run_time_flags.callstack_level);
   tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
   LockGuard lock(state.tls_list_mu);
-  // Add myself to state.tls_list.
+  // Add myself to state.tls_list if it is not there yet.
+  if (&tls == state.tls_list || tls.prev != nullptr) return;
   auto *old_list = state.tls_list;
   tls.next = old_list;
   state.tls_list = &tls;
@@ -142,15 +155,29 @@ void ThreadLocalRunnerState::OnThreadStop() {
   LockGuard lock(state.tls_list_mu);
   // Remove myself from state.tls_list. The list never
   // becomes empty because the main thread does not call OnThreadStop().
+  // It also handles the case where it is not on state.tls_list. Thus the method
+  // is idempotent.
   if (&tls == state.tls_list) {
     state.tls_list = tls.next;
     tls.prev = nullptr;
-  } else {
+  } else if (tls.prev != nullptr) {
     auto *prev_tls = tls.prev;
     auto *next_tls = tls.next;
     prev_tls->next = next_tls;
     if (next_tls != nullptr) next_tls->prev = prev_tls;
+  } else {
+    // Already removed from state.tls_list - no further cleanup required.
+    return;
   }
+  // If the thread is terminating, create a terminated copy on heap and add it
+  // back to the global list to collect its coverage.
+  if (ignore || terminated) return;
+  ThreadLocalRunnerState *terminated_tls = new ThreadLocalRunnerState(*this);
+  terminated_tls->terminated = true;
+  auto *old_list = state.tls_list;
+  terminated_tls->next = old_list;
+  state.tls_list = terminated_tls;
+  if (old_list != nullptr) old_list->prev = terminated_tls;
 }
 
 static size_t GetPeakRSSMb() {
@@ -230,6 +257,23 @@ static void CheckWatchdogLimits() {
     if (state.input_start_time == 0) continue;
 
     CheckWatchdogLimits();
+  }
+}
+
+void GlobalRunnerState::CleanUpTerminatedTls() {
+  LockGuard lock(tls_list_mu);
+  for (auto **it_ptr = &tls_list; *it_ptr; it_ptr = &(*it_ptr)->next) {
+    // Invariant: it_ptr and *it_ptr are non-null at this point.
+    while ((*it_ptr)->terminated) {
+      auto *it = *it_ptr;
+      *it_ptr = it->next;
+      if (it->next == nullptr) {
+        delete it;
+        return;
+      }
+      it->next->prev = it->prev;
+      delete it;
+    }
   }
 }
 
@@ -313,6 +357,7 @@ static void WriteFeaturesToFile(FILE *file, const feature_t *features,
 __attribute__((noinline))  // so that we see it in profile.
 static void
 PrepareCoverage(bool full_clear) {
+  state.CleanUpTerminatedTls();
   if (state.run_time_flags.path_level != 0) {
     state.ForEachTls([](ThreadLocalRunnerState &tls) {
       tls.path_ring_buffer.Reset(state.run_time_flags.path_level);
@@ -929,6 +974,8 @@ GlobalRunnerState::~GlobalRunnerState() {
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
+  // Always clean up terminated TLS to avoid leakage.
+  CleanUpTerminatedTls();
 }
 
 // If HasFlag(:shmem:), state.arg1 and state.arg2 are the names

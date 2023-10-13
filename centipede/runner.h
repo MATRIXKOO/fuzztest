@@ -112,6 +112,9 @@ struct ThreadLocalRunnerState {
 
   // Set this to true if the thread needs to be ignored in ForEachTLS.
   bool ignore;
+  // True if the original thread is terminated. The object is allocated on heap
+  // iff `termianted` is true.
+  bool terminated;
 };
 
 // One global object of this type is created by the runner at start up.
@@ -201,6 +204,9 @@ struct GlobalRunnerState {
       if (!it->ignore) callback(*it);
     }
   }
+
+  // Remove any TLS of terminated threads from the list.
+  void CleanUpTerminatedTls();
 
   // Computed by DlInfo().
   // Usually, the main object is the executable binary containing main()
