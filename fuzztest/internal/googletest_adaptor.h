@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "gtest/gtest.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -32,10 +33,15 @@ class GTest_TestAdaptor : public ::testing::Test {
 
   void TestBody() override {
     auto test = std::move(test_).make();
+    // TODO(b/301965259): Properly initialize the configuration.
+    Configuration configuration(/*corpus_database=*/"",
+                                /*replay_non_crashing=*/false,
+                                /*replay_crashing=*/false);
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
-      test->RunInUnitTestMode();
+      test->RunInUnitTestMode(configuration);
     } else {
-      ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_)) << "Fuzzing failure.";
+      ASSERT_EQ(0, test->RunInFuzzingMode(argc_, argv_, configuration))
+          << "Fuzzing failure.";
     }
   }
 
