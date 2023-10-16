@@ -13,6 +13,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/googletest_adaptor.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
@@ -59,6 +60,29 @@ FUZZTEST_DEFINE_FLAG(
     "with --" FUZZTEST_FLAG_PREFIX
     "filter to select a subset of fuzz tests. Recommended "
     "to use with test sharding.");
+
+FUZZTEST_DEFINE_FLAG(
+    std::string, corpus_database, "",
+    "Explores the corpus for the Fuzz target in the `corpus_database` where "
+    "the corpus directory has the following structure: (1) For each "
+    "SuiteName.TestName in the target, there's a sub-directory with the name "
+    "of that test ('<corpus_database>/SuiteName.TestName'). (3) For each "
+    "FuzzTest, there are three directories containing 'regression`, "
+    "`crashing`, `coverage` directory. The files in the `regression` directory "
+    "will always be used and it's assumed that they are non-crashing. The "
+    "files in `crashing` directory will be used when "
+    "--reproduce_corpus_crashes flag is true. And finally all files not in "
+    "`crashes` directory will be used when --replay_corpus flag is true.");
+
+FUZZTEST_DEFINE_FLAG(bool, reproduce_findings, false,
+                     "When true, the selected tests replay all crashing inputs "
+                     "in the database for a given test.");
+
+FUZZTEST_DEFINE_FLAG(
+    bool, replay_corpus, false,
+    "When true, the selected tests replay all non-crashing inputs in the "
+    "database for a given test. This is useful for measuring the coverage of "
+    "the corpus built up during previously ran fuzzing sessions.");
 
 namespace fuzztest {
 
@@ -108,9 +132,14 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
 void RunSpecifiedFuzzTest(std::string_view name) {
   const std::string matching_fuzz_test = GetMatchingFuzzTestOrExit(name);
   internal::ForEachTest([&](auto& test) {
+    // TODO(b/301965259): Properly initialize the configuration.
+    internal::Configuration configuration(/*corpus_database=*/"",
+                                          /*replay_non_crashing=*/false,
+                                          /*replay_crashing=*/false);
     if (test.full_name() == matching_fuzz_test) {
       exit(std::move(test).make()->RunInFuzzingMode(/*argc=*/nullptr,
-                                                    /*argv=*/nullptr));
+                                                    /*argv=*/nullptr,
+                                                    configuration));
     }
   });
 }
@@ -140,7 +169,14 @@ void InitFuzzTest(int* argc, char*** argv) {
     internal::Runtime::instance().SetFuzzTimeLimit(duration);
   }
 
-  internal::RegisterFuzzTestsAsGoogleTests(argc, argv);
+  // TODO(b/301965259): Use the default corpus when corpus_path is empty.
+
+  internal::Configuration configuration{
+      absl::GetFlag(FUZZTEST_FLAG(corpus_database)),
+      absl::GetFlag(FUZZTEST_FLAG(replay_corpus)),
+      absl::GetFlag(FUZZTEST_FLAG(reproduce_findings)),
+  };
+  internal::RegisterFuzzTestsAsGoogleTests(argc, argv, configuration);
 
   const RunMode run_mode = is_test_to_fuzz_specified || is_duration_specified
                                ? RunMode::kFuzz

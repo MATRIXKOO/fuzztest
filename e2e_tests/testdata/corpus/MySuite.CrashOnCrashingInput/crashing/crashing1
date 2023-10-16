@@ -1,0 +1,5 @@
+FUZZTESTv1
+sub {
+  s: "crashing input number 1"
+}
+

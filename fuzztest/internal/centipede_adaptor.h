@@ -17,6 +17,9 @@
 
 #include <memory>
 
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
+#include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -27,8 +30,9 @@ class CentipedeFuzzerAdaptor : public FuzzTestFuzzer {
  public:
   CentipedeFuzzerAdaptor(const FuzzTest& test,
                          std::unique_ptr<UntypedFixtureDriver> fixture_driver);
-  void RunInUnitTestMode() override;
-  int RunInFuzzingMode(int* argc, char*** argv) override;
+  void RunInUnitTestMode(const Configuration& configuration) override;
+  int RunInFuzzingMode(int* argc, char*** argv,
+                       const Configuration& configuration) override;
 
  private:
   const FuzzTest& test_;
