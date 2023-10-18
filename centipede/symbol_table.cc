@@ -20,10 +20,14 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "./centipede/command.h"
@@ -35,7 +39,8 @@
 namespace centipede {
 
 bool SymbolTable::Entry::operator==(const Entry &other) const {
-  return this->func == other.func && this->file_line_col == other.file_line_col;
+  return this->func == other.func && this->file == other.file &&
+         this->line == other.line && this->col == other.col;
 }
 
 bool SymbolTable::operator==(const SymbolTable &other) const {
@@ -57,14 +62,40 @@ void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
     for (auto &bad_prefix : file_prefixes_to_remove) {
       file = absl::StripPrefix(file, bad_prefix);
     }
-    AddEntry(func, file);
+    // Split location into filename, line, and column.
+    const std::vector<std::string> file_line_col = absl::StrSplit(file, ':');
+    if (file_line_col.size() != 3) {
+      CHECK_OK(absl::InvalidArgumentError(absl::StrCat(
+          "Unexpected symbolizer input format when getting source location: ",
+          file)));
+    }
+    int line, col;
+    if (!absl::SimpleAtoi(file_line_col[1], &line)) {
+      CHECK_OK(absl::InvalidArgumentError(
+          absl::StrCat("Unable to convert line number string to an int: ",
+                       file_line_col[1])));
+    }
+    if (!absl::SimpleAtoi(file_line_col[2], &col)) {
+      CHECK_OK(absl::InvalidArgumentError(
+          absl::StrCat("Unable to convert column number string to an int: ",
+                       file_line_col[2])));
+    }
+    constexpr int kUnknownLine = 1;
+    if (line == 0) {
+      LOG(WARNING) << "Symbolizer returned line 0 indicating the executed line "
+                      "was unknown, setting line to "
+                   << kUnknownLine;
+      line = kUnknownLine;
+    }
+    AddEntry(func, file_line_col[0], line, col);
   }
 }
 
 void SymbolTable::WriteToLLVMSymbolizer(std::ostream &out) {
   for (const Entry &entry : entries_) {
     out << entry.func << std::endl;
-    out << entry.file_line_col << std::endl;
+    out << absl::StrCat(entry.file, ":", entry.line, ":", entry.col)
+        << std::endl;
     out << std::endl;
   }
 }

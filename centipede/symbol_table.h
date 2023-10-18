@@ -1,3 +1,4 @@
+#include "absl/strings/str_cat.h"
 // Copyright 2022 The Centipede Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -72,8 +73,9 @@ class SymbolTable {
   const std::string &func(size_t idx) const { return entries_[idx].func; }
 
   // Returns source code location for idx-th entry,
-  const std::string &location(size_t idx) const {
-    return entries_[idx].file_line_col;
+  std::string location(size_t idx) const {
+    return absl::StrCat(entries_[idx].file, ":", entries_[idx].line, ":",
+                        entries_[idx].col);
   }
 
   // Returns a full human-readable description for idx-th entry.
@@ -84,13 +86,16 @@ class SymbolTable {
   // Defines a symbol table entry.
   struct Entry {
     std::string func;
-    std::string file_line_col;
+    std::string file;
+    int line;
+    int col;
     bool operator==(const Entry &other) const;
   };
 
   // Add function name and file location to symbol table.
-  void AddEntry(std::string_view func, std::string_view file_line_col) {
-    entries_.push_back({std::string(func), std::string(file_line_col)});
+  void AddEntry(std::string_view func, std::string_view file, int line,
+                int col) {
+    entries_.push_back({std::string(func), std::string(file), line, col});
   }
 
  private:
